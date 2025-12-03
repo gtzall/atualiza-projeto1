@@ -69,6 +69,9 @@ export function Header() {
               </div>
             )}
           </div>
+          <Link href="/admin" className="text-white hover:text-[#d4a84b] transition-colors text-sm font-medium">
+            Admin
+          </Link>
         </nav>
       </div>
     </header>

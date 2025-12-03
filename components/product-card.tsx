@@ -14,6 +14,7 @@ interface ProductCardProps {
   originalPrice?: number
   discount?: number
   isFeatured?: boolean
+  [key: string]: any
 }
 
 export function ProductCard({
@@ -26,13 +27,86 @@ export function ProductCard({
   originalPrice,
   discount,
   isFeatured,
+  ...rest
 }: ProductCardProps) {
   const [isHovered, setIsHovered] = useState(false)
+  // Precompute URL with snapshot query (supports abrir em nova guia / compartilhar)
+  let hrefUrl = `/produto/${encodeURIComponent(id)}`
+  try {
+    const firstAnyImg = (Array.isArray(rest?.images) && rest.images.length ? rest.images[0] : image) as string | undefined
+    let firstImgForUrl = ""
+    if (typeof firstAnyImg === "string" && firstAnyImg) {
+      if (firstAnyImg.startsWith("data:")) {
+        if (firstAnyImg.length <= 8000) firstImgForUrl = firstAnyImg
+      } else {
+        firstImgForUrl = firstAnyImg
+      }
+    }
+    const snapshot = {
+      id,
+      name,
+      category,
+      subcategory,
+      image: firstImgForUrl || undefined,
+      price,
+      originalPrice,
+      discount,
+      isFeatured,
+      available: rest?.available,
+      isPreSale: rest?.isPreSale,
+      pixKey: rest?.pixKey,
+      pixKeyType: rest?.pixKeyType,
+      whatsapp: rest?.whatsapp,
+      linkMercadoPago: rest?.linkMercadoPago,
+      linkPayPal: rest?.linkPayPal,
+      linkPicPay: rest?.linkPicPay,
+      images: firstImgForUrl ? [firstImgForUrl] : [],
+    }
+    const json = JSON.stringify(snapshot)
+    let b64 = ""
+    try {
+      b64 = btoa(
+        encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode(parseInt(p1, 16)))
+      )
+    } catch {
+      b64 = ""
+    }
+    if (b64) hrefUrl = `/produto/${encodeURIComponent(id)}?s=${encodeURIComponent(b64)}`
+  } catch {}
 
   return (
     <Link
-      href={`/produto/${id}`}
+      href={hrefUrl}
       className="group block"
+      onClick={() => {
+        try {
+          if (typeof window !== "undefined") {
+            const snapshot = {
+              id,
+              name,
+              category,
+              subcategory,
+              image,
+              price,
+              originalPrice,
+              discount,
+              isFeatured,
+              sizes: rest?.sizes,
+              images: rest?.images || (image ? [image] : []),
+              available: rest?.available,
+              isPreSale: rest?.isPreSale,
+              pixKey: rest?.pixKey,
+              pixKeyType: rest?.pixKeyType,
+              whatsapp: rest?.whatsapp,
+              linkMercadoPago: rest?.linkMercadoPago,
+              linkPayPal: rest?.linkPayPal,
+              linkPicPay: rest?.linkPicPay,
+            }
+            sessionStorage.setItem(`gn_product_snapshot_${String(id)}`, JSON.stringify(snapshot))
+            try { localStorage.setItem(`gn_product_snapshot_${String(id)}`, JSON.stringify(snapshot)) } catch {}
+          }
+        } catch {}
+      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >

@@ -1,6 +1,9 @@
+"use client"
+
 import Link from "next/link"
+import { useEffect, useMemo, useState } from "react"
 import { ProductCard } from "./product-card"
-import { products } from "@/lib/products"
+import { getRuntimeProducts, getRuntimeProductsAsync } from "@/lib/runtime-products"
 
 function ArrowRightIcon({ className }: { className?: string }) {
   return (
@@ -20,7 +23,17 @@ function ArrowRightIcon({ className }: { className?: string }) {
 }
 
 export function FeaturedProducts() {
-  const featuredProducts = products.filter((p) => p.isFeatured).slice(0, 4)
+  const [list, setList] = useState<any[]>([])
+  useEffect(() => {
+    // Hydrate client-side (localStorage / Supabase)
+    getRuntimeProductsAsync()
+      .then((r) => setList(r))
+      .catch(() => setList(getRuntimeProducts()))
+  }, [])
+  const featuredProducts = useMemo(
+    () => list.filter((p: any) => p.isFeatured && (p.available ?? true) !== false).slice(0, 4),
+    [list],
+  )
 
   return (
     <section className="py-20 bg-white">

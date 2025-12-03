@@ -1,20 +1,27 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { ProductCard } from "@/components/product-card"
 import { CatalogFilters } from "@/components/catalog-filters"
-import { products, priceRanges } from "@/lib/products"
+import { priceRanges } from "@/lib/products"
+import { getRuntimeProducts, getRuntimeProductsAsync } from "@/lib/runtime-products"
 
 export default function CatalogoPage() {
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [selectedPriceRange, setSelectedPriceRange] = useState("all")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
 
+  const [list, setList] = useState(() => getRuntimeProducts())
+
+  useEffect(() => {
+    getRuntimeProductsAsync().then((r) => setList(r)).catch(() => {})
+  }, [])
+
   const filteredProducts = useMemo(() => {
-    let filtered = [...products]
+    let filtered = [...list]
 
     // Filter by category
     if (selectedCategory !== "all") {
@@ -36,8 +43,11 @@ export default function CatalogoPage() {
       }
     }
 
+    // Only available products
+    filtered = filtered.filter((p: any) => (p.available ?? true) !== false)
+
     return filtered
-  }, [selectedCategory, selectedPriceRange])
+  }, [selectedCategory, selectedPriceRange, list])
 
   return (
     <main className="min-h-screen bg-white">
