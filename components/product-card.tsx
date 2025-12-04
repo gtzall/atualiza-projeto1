@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 
 interface ProductCardProps {
   id: string
@@ -30,8 +30,9 @@ export function ProductCard({
   ...rest
 }: ProductCardProps) {
   const [isHovered, setIsHovered] = useState(false)
-  // Precompute URL with snapshot query (supports abrir em nova guia / compartilhar)
-  let hrefUrl = `/produto/${encodeURIComponent(id)}`
+  // Precompute URL with token for reliable handoff
+  const token = useMemo(() => `${Date.now()}_${Math.random().toString(36).slice(2)}`, [])
+  let hrefUrl = `/produto/${encodeURIComponent(id)}?t=${encodeURIComponent(token)}`
   try {
     const firstAnyImg = (Array.isArray(rest?.images) && rest.images.length ? rest.images[0] : image) as string | undefined
     let firstImgForUrl = ""
@@ -71,13 +72,81 @@ export function ProductCard({
     } catch {
       b64 = ""
     }
-    if (b64) hrefUrl = `/produto/${encodeURIComponent(id)}?s=${encodeURIComponent(b64)}`
+    if (b64) hrefUrl = `/produto/${encodeURIComponent(id)}?t=${encodeURIComponent(token)}&s=${encodeURIComponent(b64)}`
   } catch {}
 
   return (
     <Link
       href={hrefUrl}
       className="group block"
+      onMouseDown={() => {
+        try {
+          if (typeof window !== "undefined") {
+            const snapshot = {
+              id,
+              name,
+              category,
+              subcategory,
+              image,
+              price,
+              originalPrice,
+              discount,
+              isFeatured,
+              sizes: rest?.sizes,
+              images: rest?.images || (image ? [image] : []),
+              available: rest?.available,
+              isPreSale: rest?.isPreSale,
+              pixKey: rest?.pixKey,
+              pixKeyType: rest?.pixKeyType,
+              whatsapp: rest?.whatsapp,
+              linkMercadoPago: rest?.linkMercadoPago,
+              linkPayPal: rest?.linkPayPal,
+              linkPicPay: rest?.linkPicPay,
+            }
+            sessionStorage.setItem(`gn_product_snapshot_${String(id)}`, JSON.stringify(snapshot))
+            try { localStorage.setItem(`gn_product_snapshot_${String(id)}`, JSON.stringify(snapshot)) } catch {}
+            try { localStorage.setItem('gn_current_product', JSON.stringify(snapshot)) } catch {}
+            try { localStorage.setItem(`gn_snap_token_${token}`, JSON.stringify(snapshot)) } catch {}
+            try {
+              const primary = (snapshot.images && snapshot.images[0]) || snapshot.image
+              try { if (primary) localStorage.setItem(`gn_img_${String(id)}`, primary) } catch {}
+              ;(window as any).__gn_img = (window as any).__gn_img || {}
+              if (primary) (window as any).__gn_img[String(id)] = primary
+              ;(window as any).__gn_product = (window as any).__gn_product || {}
+              ;(window as any).__gn_product[String(id)] = snapshot
+            } catch {}
+          }
+        } catch {}
+      }}
+      onTouchStart={() => {
+        try {
+          if (typeof window !== "undefined") {
+            const snapshot = {
+              id,
+              name,
+              category,
+              subcategory,
+              image,
+              price,
+              originalPrice,
+              discount,
+              isFeatured,
+              sizes: rest?.sizes,
+              images: rest?.images || (image ? [image] : []),
+              available: rest?.available,
+              isPreSale: rest?.isPreSale,
+              pixKey: rest?.pixKey,
+              pixKeyType: rest?.pixKeyType,
+              whatsapp: rest?.whatsapp,
+              linkMercadoPago: rest?.linkMercadoPago,
+              linkPayPal: rest?.linkPayPal,
+              linkPicPay: rest?.linkPicPay,
+            }
+            sessionStorage.setItem(`gn_product_snapshot_${String(id)}`, JSON.stringify(snapshot))
+            try { localStorage.setItem(`gn_product_snapshot_${String(id)}`, JSON.stringify(snapshot)) } catch {}
+          }
+        } catch {}
+      }}
       onClick={() => {
         try {
           if (typeof window !== "undefined") {

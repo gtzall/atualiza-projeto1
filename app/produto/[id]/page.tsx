@@ -5,8 +5,8 @@ import { products, getProductById } from "@/lib/products"
 
 export const dynamic = "force-dynamic"
 
-export default function ProductPage({ params }: { params: { id: string } }) {
-  const { id } = params
+export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   // Use seed if exists; otherwise, pass a minimal placeholder (ProductDetail hidrata do runtime/Supabase)
   const product =
     getProductById(id) ||

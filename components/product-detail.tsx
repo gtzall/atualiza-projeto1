@@ -72,9 +72,98 @@ export function ProductDetail({ product }: { product: Product }) {
   const [selectedSize, setSelectedSize] = useState("")
   const [p, setP] = useState<any>(null)
   const searchParams = useSearchParams()
-  const [imgSrc, setImgSrc] = useState<string | null>(null)
+  const [imgSrc, setImgSrc] = useState<string | null>(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const t = new URLSearchParams(window.location.search).get("t")
+        const rawTok = t ? localStorage.getItem(`gn_snap_token_${t}`) : null
+        if (rawTok) {
+          const snap = JSON.parse(rawTok)
+          const first = snap?.images?.[0] || snap?.image
+          if (first) return first
+        }
+        const memProd = (window as any).__gn_product?.[String(product.id)]
+        const memImg = (window as any).__gn_img?.[String(product.id)]
+        if (memProd) {
+          const first = memProd?.images?.[0] || memProd?.image
+          if (first) return first
+        }
+        if (memImg) return memImg
+        const rawSS = sessionStorage.getItem(`gn_product_snapshot_${String(product.id)}`)
+        if (rawSS) {
+          const snap = JSON.parse(rawSS)
+          const first = snap?.images?.[0] || snap?.image
+          if (first) return first
+        }
+        const rawUni = localStorage.getItem('gn_current_product')
+        if (rawUni) {
+          const snap = JSON.parse(rawUni)
+          if (String(snap?.id) === String(product.id)) {
+            const first = snap?.images?.[0] || snap?.image
+            if (first) return first
+          }
+        }
+        const rawList = localStorage.getItem('gn_admin_products_v1')
+        if (rawList) {
+          const arr = JSON.parse(rawList) as any[]
+          const found = arr.find((x) => String(x?.id) === String(product.id))
+          const first = found?.images?.[0] || found?.image
+          if (first) return first
+        }
+      }
+    } catch {}
+    return null
+  })
   useEffect(() => {
     let current: any = null
+
+    // 0) In-memory SPA handoff set in ProductCard (síncrono, antes de qualquer leitura de storage)
+    try {
+      if (typeof window !== "undefined") {
+        const memProd = (window as any).__gn_product?.[String(product.id)]
+        const memImg = (window as any).__gn_img?.[String(product.id)]
+        if (memProd) {
+          const first = memProd?.images?.[0] || memProd?.image || memImg || product.image
+          current = { ...product, ...memProd, image: first, images: memProd?.images || (first ? [first] : []) }
+          if (first && !imgSrc) setImgSrc(first)
+        } else if (memImg) {
+          current = { ...product, image: memImg, images: [memImg] }
+          if (!imgSrc) setImgSrc(memImg)
+        }
+      }
+    } catch {}
+
+    // 0.6) Token de handoff na URL (?t=<token>)
+    try {
+      const t = searchParams?.get("t")
+      if (!current && t && typeof window !== "undefined") {
+        const rawTok = localStorage.getItem(`gn_snap_token_${t}`)
+        if (rawTok) {
+          const snap = JSON.parse(rawTok)
+          if (String(snap?.id) === String(product.id)) {
+            const first = snap?.images?.[0] || snap?.image || product.image
+            current = { ...product, ...snap, image: first, images: snap?.images || (first ? [first] : []) }
+            if (first && !imgSrc) setImgSrc(first)
+          }
+          try { localStorage.removeItem(`gn_snap_token_${t}`) } catch {}
+        }
+      }
+    } catch {}
+
+    // 0.5) Snapshot universal do card (localStorage)
+    try {
+      if (!current && typeof window !== "undefined") {
+        const rawUni = localStorage.getItem('gn_current_product')
+        if (rawUni) {
+          const snap = JSON.parse(rawUni)
+          if (String(snap?.id) === String(product.id)) {
+            const first = snap?.images?.[0] || snap?.image || product.image
+            current = { ...product, ...snap, image: first, images: snap?.images || (first ? [first] : []) }
+            if (first && !imgSrc) setImgSrc(first)
+          }
+        }
+      }
+    } catch {}
 
     // 1) Snapshot do clique (mantém imagens base64)
     try {

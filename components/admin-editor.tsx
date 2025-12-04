@@ -70,31 +70,41 @@ export default function AdminEditor({
   const onFile = async (files: FileList | null) => {
     if (!files || !files.length) return
     const arr = Array.from(files)
-    if (hasSupabase()) {
-      const sb = getSupabase()!
-      await Promise.all(
-        arr.map(async (f) => {
+    await Promise.all(
+      arr.map(async (f) => {
+        // 1) Secure server upload (service role) se configurado
+        try {
+          const fd = new FormData()
+          fd.append("file", f)
+          fd.append("productId", (data?.id || Date.now().toString()))
+          const res = await fetch("/api/upload", { method: "POST", body: fd })
+          if (res.ok) {
+            const json = await res.json()
+            if (json?.url) { addImageUrl(json.url); return }
+          }
+        } catch {}
+
+        // 2) Client upload direto no Storage (requer bucket com escrita pública)
+        if (hasSupabase()) {
           try {
+            const sb = getSupabase()!
             const folder = `products/${(data?.id || Date.now()).toString()}`
             const path = `${folder}/${Date.now()}-${f.name}`
             const { error } = await sb.storage.from("product-images").upload(path, f, { upsert: true, contentType: f.type })
             if (error) throw error
             const { data: pub } = sb.storage.from("product-images").getPublicUrl(path)
-            if (pub?.publicUrl) addImageUrl(pub.publicUrl)
-          } catch {
-            const reader = new FileReader()
-            reader.onload = () => addImageUrl(String(reader.result))
-            reader.readAsDataURL(f)
-          }
-        }),
-      )
-    } else {
-      arr.forEach((f) => {
-        const reader = new FileReader()
-        reader.onload = () => addImageUrl(String(reader.result))
-        reader.readAsDataURL(f)
+            if (pub?.publicUrl) { addImageUrl(pub.publicUrl); return }
+          } catch {}
+        }
+
+        // 3) Fallback base64 (local)
+        await new Promise<void>((resolve) => {
+          const reader = new FileReader()
+          reader.onload = () => { addImageUrl(String(reader.result)); resolve() }
+          reader.readAsDataURL(f)
+        })
       })
-    }
+    )
   }
 
   if (!open || !data) return null
@@ -315,7 +325,46 @@ export default function AdminEditor({
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50 rounded-b-xl">
           <button onClick={onClose} className="px-4 py-2 rounded-lg border">Cancelar</button>
           <button
-            onClick={() => onSave(data)}
+            onClick={async () => {
+              if (!data) return
+              let images = data.images || (data.image ? [data.image] : [])
+              const persisted: string[] = []
+              for (const img of images) {
+                if (typeof img === "string" && img.startsWith("data:")) {
+                  // Tenta rota server-side segura
+                  try {
+                    const blob = await (await fetch(img)).blob()
+                    const fd = new FormData()
+                    fd.append("file", new File([blob], `upload-${Date.now()}.png`, { type: blob.type || "image/png" }))
+                    fd.append("productId", (data.id || Date.now().toString()))
+                    const res = await fetch("/api/upload", { method: "POST", body: fd })
+                    if (res.ok) {
+                      const json = await res.json()
+                      if (json?.url) { persisted.push(json.url); continue }
+                    }
+                  } catch {}
+                  // Tenta client Storage (requer escrita pública)
+                  try {
+                    if (hasSupabase()) {
+                      const sb = getSupabase()!
+                      const blob = await (await fetch(img)).blob()
+                      const path = `products/${(data.id || Date.now().toString())}/${Date.now()}-auto.png`
+                      const { error } = await sb.storage.from("product-images").upload(path, blob, { upsert: true, contentType: blob.type || "image/png" })
+                      if (!error) {
+                        const { data: pub } = sb.storage.from("product-images").getPublicUrl(path)
+                        if (pub?.publicUrl) { persisted.push(pub.publicUrl); continue }
+                      }
+                    }
+                  } catch {}
+                  // Último recurso: mantém base64
+                  persisted.push(img)
+                } else {
+                  persisted.push(img)
+                }
+              }
+              const primary = persisted.length ? persisted[0] : data.image || "/placeholder.svg"
+              await onSave({ ...data, images: persisted, image: primary })
+            }}
             className="px-4 py-2 rounded-lg bg-[#d4a84b] text-white"
           >
             Salvar
